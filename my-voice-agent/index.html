@@ -7,7 +7,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: "Segoe UI", sans-serif;
       background: #0d1b2a;
       color: #e2e8f0;
       display: flex;
@@ -21,7 +21,7 @@
       border-radius: 20px;
       padding: 32px;
       width: 460px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
 
     h1 {
@@ -38,7 +38,6 @@
       margin-bottom: 24px;
     }
 
-    /* ── Chat log ── */
     .chat-log {
       height: 320px;
       overflow-y: auto;
@@ -52,12 +51,12 @@
     .chat-log::-webkit-scrollbar {
       width: 4px;
     }
+
     .chat-log::-webkit-scrollbar-thumb {
       background: #334155;
       border-radius: 4px;
     }
 
-    /* ── Message bubbles ── */
     .bubble {
       padding: 12px 16px;
       border-radius: 14px;
@@ -88,9 +87,8 @@
     }
 
     .bubble.you .who { color: #93c5fd; }
-    .bubble.ai  .who { color: #4ade80; }
+    .bubble.ai .who { color: #4ade80; }
 
-    /* ── Input area ── */
     .input-area {
       display: flex;
       gap: 10px;
@@ -136,7 +134,31 @@
       cursor: not-allowed;
     }
 
-    /* ── Status ── */
+    button#micBtn {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #e2e8f0;
+      font-size: 16px;
+      cursor: pointer;
+      transition: border 0.2s, background 0.2s;
+    }
+
+    button#micBtn:hover {
+      border-color: #3b82f6;
+    }
+
+    button#micBtn.recording {
+      background: #7f1d1d;
+      border-color: #ef4444;
+    }
+
+    button#micBtn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     #status {
       text-align: center;
       font-size: 12px;
@@ -145,7 +167,6 @@
       min-height: 18px;
     }
 
-    /* ── Speaker button ── */
     .speak-btn {
       background: none;
       border: none;
@@ -160,7 +181,6 @@
       color: #86efac;
     }
 
-    /* ── Welcome message ── */
     .welcome {
       text-align: center;
       color: #334155;
@@ -176,7 +196,6 @@
   <h1>AI CALLING AGENT</h1>
   <p class="subtitle"></p>
 
-  <!-- Chat messages appear here -->
   <div class="chat-log" id="chatLog">
     <p class="welcome">
       Say hi or ask anything!<br/>
@@ -184,7 +203,6 @@
     </p>
   </div>
 
-  <!-- Input box + send button -->
   <div class="input-area">
     <input
       type="text"
@@ -192,77 +210,69 @@
       placeholder="Type your message..."
       autocomplete="off"
     />
+    <button id="micBtn" title="Speak">🎙</button>
     <button id="sendBtn">➤</button>
   </div>
 
-  <!-- Status text -->
   <div id="status"></div>
 
 </div>
 
 <script>
-  // ── Elements ──
-  const chatLog   = document.getElementById("chatLog");
+  const chatLog = document.getElementById("chatLog");
   const userInput = document.getElementById("userInput");
-  const sendBtn   = document.getElementById("sendBtn");
-  const status    = document.getElementById("status");
+  const micBtn = document.getElementById("micBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const status = document.getElementById("status");
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
 
-  // ── Add a message bubble to chat ──
   function addBubble(who, text) {
-    // Remove welcome message on first message
     const welcome = chatLog.querySelector(".welcome");
     if (welcome) welcome.remove();
 
-    // Create bubble
     const bubble = document.createElement("div");
     bubble.className = `bubble ${who}`;
 
-    // Label
     const label = document.createElement("div");
     label.className = "who";
     label.textContent = who === "you" ? "🧑 You" : "🤖 AI";
     bubble.appendChild(label);
 
-    // Message text
     const msg = document.createElement("div");
     msg.textContent = text;
     bubble.appendChild(msg);
 
-    // Speak button (only for AI messages)
     if (who === "ai") {
       const speakBtn = document.createElement("button");
       speakBtn.className = "speak-btn";
       speakBtn.textContent = "🔊 Hear this";
-      speakBtn.onclick = () => speakElevenLabs(text);
+      speakBtn.onclick = () => speakOpenAI(text);
       bubble.appendChild(speakBtn);
     }
 
     chatLog.appendChild(bubble);
-
-    // Auto scroll to bottom
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
-  // ── Speak text using browser voice ──
   function speakText(text) {
-    // Stop any current speech
+    if (recognition && isRecording) {
+      recognition.stop();
+    }
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
-    // Voice settings
-    utterance.lang   = "en-IN"; // Indian English
-    utterance.rate   = 0.95;    // Speed (1 = normal)
-    utterance.pitch  = 1.0;     // Pitch
-    utterance.volume = 1.0;     // Volume
-
-    // Pick a good voice if available
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.lang.includes("en") && v.name.includes("Female")
-    ) || voices.find(v =>
-      v.lang.includes("en")
-    );
+    const preferred = voices.find((voice) =>
+      voice.lang.includes("en") && voice.name.toLowerCase().includes("female")
+    ) || voices.find((voice) => voice.lang.includes("en"));
+
     if (preferred) utterance.voice = preferred;
 
     status.textContent = "🔊 Speaking...";
@@ -273,91 +283,164 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  // ── Speak using ElevenLabs human voice ──
-async function speakElevenLabs(text) {
+  async function speakOpenAI(text) {
     status.textContent = "🔊 Speaking...";
 
     try {
-        const response = await fetch("/speak", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: text }),
-        });
+      if (recognition && isRecording) recognition.stop();
 
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
+      const response = await fetch("/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const mediaSource = new MediaSource();
+      const audio = new Audio();
+      audio.src = URL.createObjectURL(mediaSource);
+
+      mediaSource.addEventListener("sourceopen", async () => {
+        const sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+        const reader = response.body.getReader();
+
         audio.play();
 
-        audio.onended = () => {
-            status.textContent = "";
-        };
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            mediaSource.endOfStream();
+            break;
+          }
+
+          await new Promise(resolve => {
+            if (!sourceBuffer.updating) return resolve();
+            sourceBuffer.addEventListener("updateend", resolve, { once: true });
+          });
+
+          sourceBuffer.appendBuffer(value);
+        }
+      }, { once: true });
+
+      audio.onended = () => {
+        status.textContent = "";
+        URL.revokeObjectURL(audio.src);
+      };
     } catch (err) {
-        console.error("Voice error:", err);
-        // Fallback to browser voice if ElevenLabs fails
-        speakText(text);
+      console.error("Voice error:", err);
+      speakText(text);
+      status.textContent = "";
     }
-}
-  // ── Send message to Python server ──
+  }
+
   async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
 
-    // Show user message
+    if (recognition && isRecording) {
+      recognition.stop();
+    }
+
     addBubble("you", message);
-
-    // Clear input
     userInput.value = "";
-
-    // Disable button while waiting
     sendBtn.disabled = true;
     status.textContent = "🧠 Thinking...";
 
     try {
-      // Send to Python server
       const response = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: message }),
+        body: JSON.stringify({ message }),
       });
 
       const data = await response.json();
       const reply = data.reply;
 
-      // Show AI reply
       addBubble("ai", reply);
-
-      // Auto speak the reply
-        speakElevenLabs(reply);
-
+      speakOpenAI(reply);
 
       status.textContent = "";
-
     } catch (err) {
       addBubble("ai", "❌ Something went wrong. Is your server running?");
       status.textContent = "";
       console.error(err);
     }
 
-    // Re-enable button
     sendBtn.disabled = false;
+    micBtn.disabled = false;
     userInput.focus();
   }
 
-  // ── Send on button click ──
-  sendBtn.addEventListener("click", sendMessage);
+  function setRecordingState(recording) {
+    isRecording = recording;
+    micBtn.classList.toggle("recording", recording);
+    micBtn.textContent = recording ? "⏹" : "🎙";
+  }
 
-  // ── Send on Enter key ──
-  userInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") sendMessage();
+  function setupSpeechRecognition() {
+    if (!SpeechRecognition) {
+      micBtn.disabled = true;
+      micBtn.title = "Speech recognition is not supported in this browser";
+      return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setRecordingState(true);
+      status.textContent = "🎙 Listening...";
+    };
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+      }
+      userInput.value = transcript.trim();
+    };
+
+    recognition.onerror = () => {
+      setRecordingState(false);
+      status.textContent = "Mic input failed. Try again.";
+    };
+
+    recognition.onend = () => {
+      const transcript = userInput.value.trim();
+      setRecordingState(false);
+      if (transcript) {
+        sendMessage();
+      } else {
+        status.textContent = "";
+      }
+    };
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  micBtn.addEventListener("click", () => {
+    if (!recognition) {
+      status.textContent = "Speech recognition is not supported in this browser.";
+      return;
+    }
+
+    if (isRecording) {
+      recognition.stop();
+      return;
+    }
+
+    userInput.value = "";
+    recognition.start();
+  });
+  userInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") sendMessage();
   });
 
-  // ── Load voices when ready ──
   window.speechSynthesis.onvoiceschanged = () => {
     window.speechSynthesis.getVoices();
   };
+
+  setupSpeechRecognition();
 </script>
 </body>
 </html>
-
-
